@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>web_camera</title>
+    <style type="text/css">
+        .btn{
+           width :60px;
+           height:40px;
+           font-style:黑体;
+           font-size:20px;
+           color:#FF0000;
+       }
+        .rge{
+           width :280px;
+       }
+    </style>
+</head>
+<body>
+<center>
+  <h1>二自由度云台-网页控制</h1>
+  <p>警告:舵机不防堵,不要长时间夹着物件不放,会发烫烧坏</br>
+
+  <p>
+    <button type="button" class="btn" onclick="change('X','XV',-1)">X--</button>
+    <input  type="range"  class="rge" id="X" min="70" max="130" step="1" value="90"  oninput="input('X','XV')" onchange="change('X','XV',0)">
+    <span id="XV" >100</span>
+    <button type="button" class="btn" onclick="change('X','XV',+1)">X++</button>
+  </p>
+
+  <p>
+    <button type="button" class="btn" onclick="change('Y','YV',-1)">Y--</button>
+    <input  type="range"  class="rge" id="Y" min="30" max="130" step="1" value="90" oninput="input('Y','YV')" onchange="change('Y','YV',0)">
+    <span id="YV" >120</span>
+    <button type="button" class="btn" onclick="change('Y','YV',+1)">Y++</button>
+  </p>
+
+  <p>指令
+    <input   type="text"  style="width:340px;height:30px;" name="command" id="command"  onkeydown="send()"  value="H" tabindex="1">
+    <button type="button" style="height:30px;" onclick="sendData(null)" autofocus>发送</button>
+  </p>
+
+  <P>
+    <button type="button" style="height:30px;" onclick="sendData('H')">H 全部归位</button>
+    <button type="button" style="height:30px;" onclick="sendData('S')">S 生成指令</button>
+    <button type="button" style="height:30px;" onclick="sendData('D')">D 删除指令</button>
+    <button type="button" style="height:30px;" onclick="sendData('C')">C 清空指令</button>
+    <button type="button" style="height:30px;" onclick="sendData('R')">R 执行指令</button>
+  </P>
+
+    <textarea id="RET" rows="26" cols="64" readonly="readonly">
+RE		重启 ESP8266 控制板.需要重新连网,开网页
+DIR		列出控制板闪存里的所有文件
+? HELP.txt	查看指定文件内容 ? Auto.txt
+F Auto.txt	指定动作文件 S D R C 将操作此文件
+SH		保存所有舵机当前角度到 H.txt 文件
+S		往F指定文件添加 转动过的舵机角度
+S X90		往F指定文件添加 X90 舵机动作指令
+S 1000		往F指定文件添加 delay 1000 延迟指令
+S delay 1000	往F指定文件添加 delay 1000 延迟指令
+D 1		在F指定文件 末尾 删除N行指令 D = D1
+Auto		执行Auto动作文件里的所有指令 Auto.txt
+R 3		执行3次Auto动作文件
+R Auto.txt	执行指定动作文件里的所有指令
+C Auto.txt	删除控制板闪存里指定文件;格式化命令见源代码
+
+step 0		调整舵机转动速度,0为原速,1为慢速
+下面是舵机转动角度(0度-180度)控制.底座=X,大臂=Y,小臂=Z,夹子=E
+H		执行 H.txt 使 XYZE 舵机全部归位
+X++		执行后 X舵机角度+1度;Y++;Z++
+X--		执行后 X舵机角度-1度;Y--;Z--
+X+?		执行后 X舵机相对+N度;Y+5;Z+22
+X-?		执行后 X舵机相对-N度;Y-6;Z-35
+X??		执行后 X舵机到绝对角度;Y90;Z120
+
+</textarea>
+<p>
+    <a href='/index.html'      >[首页]</a>
+    <a href='/upload.html'     >[上传文件]</a>
+    <a href='/Auto.txt' target="_blank"  id="F">[Auto.txt]</a>
+    <a href='/config'          >[WIFI设置]</a>
+    <a href='/upbin'           >[更新固件]</a>
+    <a href='/HELP.html'       >[操作说明]</a>
+</p>
+</center>
+
+
+<script>
+
+	function sendData(arg) {
+		var xhttp = new XMLHttpRequest();
+		xhttp.onreadystatechange = ready;
+		if(arg==null){
+			arg=document.getElementById('command').value;
+		}
+		arg=arg.replace(/\+/g ,"_");					//把'+'替换为'_'
+		xhttp.open("GET", "command?"+arg+"&time="+new Date().getTime(), true);  //true false
+		xhttp.send();
+	}
+
+	function ready() {
+		if (this.readyState == 4 && this.status == 200) {
+			//使用 XMLHttpRequest 对象的 responseText 接收响应数据
+          var txt = this.responseText;
+
+          var obj = document.getElementById("RET");
+			obj.append(txt + '\n');		         //追加文本框内容
+			obj.scrollTop = obj.scrollHeight;
+          
+          var i=txt.indexOf("{");
+          if(i>=0) {
+             txt=txt.substr(i);              //提取JSON内容
+			   var XYZE = JSON.parse(txt);     
+             if(XYZE.E){
+               document.getElementById("E").value=XYZE.E; input("E","EV");
+               document.getElementById("Z").value=XYZE.Z; input("Z","ZV");
+               document.getElementById("Y").value=XYZE.Y; input("Y","YV");
+               document.getElementById("X").value=XYZE.X; input("X","XV");
+             }
+             if(XYZE.F){
+               document.getElementById("F").href=XYZE.F;
+               document.getElementById("F").innerHTML='['+XYZE.F+']';
+             }
+          }
+		}
+	}
+
+
+	function  send() {
+		if(event.keyCode==13){
+			sendData(document.getElementById('command').value);
+			document.getElementById('command').value='';
+		}
+	}
+
+
+   function change(i,j,v) {
+      var value = document.getElementById(i).value;
+      if(v>0) {value++;if(value>document.getElementById(i).max) value--;}
+      if(v<0) {value--;if(value<document.getElementById(i).min) value++;}
+      document.getElementById(j).innerHTML = value;
+      if(0!=v) document.getElementById(i).value=value;
+      
+      value=i+value;
+      sendData(value);
+   }
+
+   function input(i,j) {
+     document.getElementById(j).innerHTML = document.getElementById(i).value;
+   }
+
+   var xhttp = new XMLHttpRequest();
+	xhttp.onreadystatechange = ready;
+	xhttp.open("GET","command",true); 
+	xhttp.send();
+</script>
+</body>
+</html>
